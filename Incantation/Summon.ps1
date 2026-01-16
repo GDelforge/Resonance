@@ -33,7 +33,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
     
     # 1. Clean/Create Target
     if (Test-Path $TargetDir) {
-        Write-Host "Gathering preparing the incantation space in $TargetDir." -ForegroundColor Yellow
+        Write-Host "Gathering the material in $TargetDir." -ForegroundColor Yellow
         # Optional: Remove-Item $TargetDir -Recurse -Force (If you want a fresh wipe every time)
     } else {
         New-Item -Path $TargetDir -ItemType Directory -Force | Out-Null
@@ -66,7 +66,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
     Start-Sleep -Seconds 1
 
     # 4. Handoff to Local Script
-    Write-Host "Preparing the incantation..." -ForegroundColor Green
+    Write-Host "Reading the scroll of knowledge..." -ForegroundColor Green
     $LocalScript = Join-Path $TargetDir "Incantation\Summon.ps1"
     
     if (-not (Test-Path $LocalScript)) {
@@ -85,7 +85,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
 # === STAGE 2: ELEVATION & SETUP ===
 # If we reached here, we are running locally inside C:\Data\Grimoire.
 
-Write-Host "~~~ PHASE 2: THE SUMMONING CIRCLE ~~~" -ForegroundColor Magenta
+Write-Host "~~~ PHASE 2: PREPARING THE INCANTATION ~~~" -ForegroundColor Magenta
 
 # 1. Elevate (Admin Rights)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {

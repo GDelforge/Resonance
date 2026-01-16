@@ -38,6 +38,7 @@ class Grimoire:
     def banner(self):
         console.clear()
         console.print(Panel(f"[arcane]~~~ THE GRAND CONJURATION (PYTHON EDITION) ~~~[/arcane]\n[dim]Apprentice: {self.user}[/dim]", border_style="magenta"))
+        time.sleep(1.5)
 
     def run_ps(self, cmd, description=None):
         """Executes a raw PowerShell command."""
@@ -69,10 +70,11 @@ class Grimoire:
 
     def step_fonts(self):
         """Installs fonts by leveraging the Shell.Application COM object via PS wrapper."""
+        console.print("\n[arcane]Step 1: Inscribing Glyphs[/arcane]")
+        time.sleep(1)
         if Confirm.ask("[spell]Ancient Glyphs (Fonts) seem vital. Inscribe them?[/spell]"):
             font_urls = {
                 "Nunito": "https://www.1001fonts.com/download/nunito.zip",
-                "Raleway": "https://www.1001fonts.com/download/raleway.zip",
                 "FiraCode": "https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip"
             }
             
@@ -81,7 +83,6 @@ class Grimoire:
             ps_block = """
             $Fonts = @{
                 'Nunito'   = 'https://www.1001fonts.com/download/nunito.zip'
-                'Raleway'  = 'https://www.1001fonts.com/download/raleway.zip'
                 'FiraCode' = 'https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip'
             }
             $FontTemp = "$env:TEMP\\CustomFonts"
@@ -111,16 +112,24 @@ class Grimoire:
                 progress.add_task("[cyan]Scribing Glyphs...", total=None)
                 self.run_ps(ps_block)
             console.print("[success]  + Glyphs inscribed.[/success]")
+            time.sleep(1)
 
     def step_share_and_drive(self):
         """Sets up the Data folder and Maps R:"""
+        console.print("\n[arcane]Step 2: Setting up the Codex[/arcane]")
+        time.sleep(1)
+
         if not self.data_path.exists():
+            console.print(f"[info]The Codex ({self.data_path}) is not yet materialized.[/info]")
             if Confirm.ask(f"[spell]The Codex ({self.data_path}) is hidden. Reveal it?[/spell]"):
                 self.data_path.mkdir(exist_ok=True)
                 # Share it
                 self.run_ps(f"New-SmbShare -Name '{self.share_name}' -Path '{self.data_path}' -FullAccess '{self.user}' -Description 'Data Repository' -ErrorAction SilentlyContinue", "Creating SMB Share")
+        else:
+            console.print(f"[dim]The Codex ({self.data_path}) stands ready.[/dim]")
 
         if not Path(self.drive_letter).exists():
+            console.print(f"[info]The Astral Gateway ({self.drive_letter}) is currently closed.[/info]")
             if Confirm.ask(f"[spell]The Astral Gateway ({self.drive_letter}) is closed. Bind it?[/spell]"):
                 cmd = f"""
                 New-SmbMapping -LocalPath {self.drive_letter} -RemotePath "\\\\localhost\\{self.share_name}" -Persistent $true
@@ -130,6 +139,9 @@ class Grimoire:
                 """
                 if self.run_ps(cmd, "Binding Drive"):
                     console.print(f"[success]  + Gateway bound as {self.drive_label}.[/success]")
+        else:
+            console.print(f"[dim]The Astral Gateway ({self.drive_letter}) is already open.[/dim]")
+        time.sleep(1)
 
     def step_software(self):
         """Installs software via Winget."""
@@ -147,6 +159,8 @@ class Grimoire:
         }
 
         console.print("\n[arcane]Step 3: Summoning Instruments (Winget)[/arcane]")
+        console.print("[info]Aligning planetary bodies for software download...[/info]")
+        time.sleep(2)
         
         # Check if Winget exists
         if shutil.which("winget") is None:
@@ -192,6 +206,7 @@ class Grimoire:
     def step_windows_settings(self):
         """Configures Windows UI settings via Registry."""
         console.print("\n[arcane]Step 4: Shaping the Apparatus (Settings)[/arcane]")
+        time.sleep(1)
         
         settings = [
             # Explorer
@@ -209,20 +224,24 @@ class Grimoire:
             self.set_reg_key(path, key, val)
         
         console.print("[success]  + Visuals aligned to darkness.[/success]")
+        time.sleep(0.5)
 
         # Wallpaper
         bg_path = self.script_root / "background.png"
         if bg_path.exists():
+            console.print(f"[info]Found background artifact at {bg_path}.[/info]")
             dest = Path(os.environ["USERPROFILE"]) / "Pictures" / "background.png"
             shutil.copy(bg_path, dest)
             # Python equivalent of SystemParametersInfo for wallpaper
             SPI_SETDESKWALLPAPER = 20
             ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, str(dest), 3)
             console.print("[success]  + Reality (Wallpaper) rewritten.[/success]")
+            time.sleep(1)
 
     def step_gemini(self):
         """Installs Gemini CLI via NPM."""
-        console.print("\n[arcane]Step 5: Summoning the Oracle[/arcane]")
+        console.print("\n[arcane]Step 5: Summoning the Oracle (Gemini CLI)[/arcane]")
+        time.sleep(1)
         if shutil.which("npm"):
             # Simple check if package is installed
             check = subprocess.run("npm list -g @google/gemini-cli", shell=True, capture_output=True, text=True)
@@ -236,7 +255,8 @@ class Grimoire:
             console.print("[warning]  ! npm not found. The Oracle cannot be summoned.[/warning]")
 
     def finalize(self):
-        console.print("\n[arcane]~~~ CONJURATION COMPLETE ~~~[/arcane]")
+        console.print("\n[arcane]~~~ INCANTATION COMPLETE ~~~[/arcane]")
+        time.sleep(1)
         if Confirm.ask("Restart Explorer to apply all sigils?"):
             subprocess.run(["powershell", "-c", "Stop-Process -Name explorer -Force; Start-Process explorer"])
 
