@@ -224,13 +224,19 @@ class Grimoire:
 
 # --- ENTRY POINT ---
 if __name__ == "__main__":
-    mage = Grimoire()
-    mage.banner()
-    
-    mage.step_fonts()
-    mage.step_share_and_drive()
-    mage.step_software()
-    mage.step_windows_settings()
-    mage.step_gemini()
-    
-    mage.finalize()
+    try:
+        mage = Grimoire()
+        mage.banner()
+        
+        mage.step_fonts()
+        mage.step_share_and_drive()
+        mage.step_software()
+        mage.step_windows_settings()
+        mage.step_gemini()
+        
+        mage.finalize()
+    except Exception as e:
+        console.print(Panel(f"[bold red]FATAL ERROR[/bold red]\n\n{e}", border_style="red"))
+        import traceback
+        traceback.print_exc()
+        input("\nPress Enter to exit...")

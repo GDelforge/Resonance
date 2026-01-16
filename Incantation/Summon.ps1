@@ -16,6 +16,13 @@ $TargetDir  = "C:\Temp\$RepoName"
 
 $ErrorActionPreference = "Stop"
 
+trap {
+    Write-Host "An error occurred:" -ForegroundColor Red
+    Write-Error $_
+    Read-Host "Press Enter to exit..."
+    Exit 1
+}
+
 # === STAGE 1: LOCALIZATION & DOWNLOAD ===
 # We check if we are already inside the "Sanctum" (Target Directory)
 # If not, we assume we are running from the web or a temp folder, so we download the repo.
@@ -41,6 +48,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
         Invoke-WebRequest -Uri $Url -OutFile $ZipPath
     } catch {
         Write-Error "Failed to download the Grimoire. Is the repository Public?"
+        Read-Host "Press Enter to exit..."
         Exit
     }
 
