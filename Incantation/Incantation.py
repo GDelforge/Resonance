@@ -255,7 +255,7 @@ class Incantator:
         time.sleep(0.5)
 
         # Wallpaper
-        bg_path = self.script_root / "background.png"
+        bg_path = self.script_root / "Assets" / "background.png"
         if bg_path.exists():
             console.print(f"[info]Found background artifact at {bg_path}.[/info]")
             dest = Path(os.environ["USERPROFILE"]) / "Pictures" / "background.png"
