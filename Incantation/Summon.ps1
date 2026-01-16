@@ -33,7 +33,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
     
     # 1. Clean/Create Target
     if (Test-Path $TargetDir) {
-        Write-Host "The Sanctum already exists at $TargetDir." -ForegroundColor Yellow
+        Write-Host "Gathering preparing the incantation space in $TargetDir." -ForegroundColor Yellow
         # Optional: Remove-Item $TargetDir -Recurse -Force (If you want a fresh wipe every time)
     } else {
         New-Item -Path $TargetDir -ItemType Directory -Force | Out-Null
@@ -43,37 +43,40 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
     $ZipPath = "$env:TEMP\Grimoire_Setup.zip"
     $Url = "https://github.com/$GitHubUser/$RepoName/archive/refs/heads/$Branch.zip"
     
-    Write-Host "Summoning artifacts from $Url..." -ForegroundColor Cyan
+    Write-Host "Reading knowledge from $Url..." -ForegroundColor Cyan
     try {
         Invoke-WebRequest -Uri $Url -OutFile $ZipPath
     } catch {
-        Write-Error "Failed to download the Grimoire. Is the repository Public?"
+        Write-Error "Failed to acces the knowledge."
         Read-Host "Press Enter to exit..."
         Exit
     }
+    Start-Sleep -Seconds 1
 
     # 3. Extract
-    Write-Host "Unpacking artifacts..." -ForegroundColor Cyan
+    Write-Host "Unpacking knowledge..." -ForegroundColor Cyan
     # GitHub zips are usually nested (Repo-main). We extract to temp, then move contents.
-    $TempExtract = "$env:TEMP\Grimoire_Extract"
+    $TempExtract = "$env:TEMP\Extract"
     if (Test-Path $TempExtract) { Remove-Item $TempExtract -Recurse -Force }
     Expand-Archive -Path $ZipPath -DestinationPath $TempExtract -Force
     
     # Move files from subfolder to TargetDir
     $SubFolder = Get-ChildItem -Path $TempExtract -Directory | Select-Object -First 1
     Copy-Item -Path "$($SubFolder.FullName)\*" -Destination $TargetDir -Recurse -Force
+    Start-Sleep -Seconds 1
 
     # 4. Handoff to Local Script
-    Write-Host "Transferring control to the local Sanctum..." -ForegroundColor Green
+    Write-Host "Preparing the incantation..." -ForegroundColor Green
     $LocalScript = Join-Path $TargetDir "Incantation\Summon.ps1"
     
     if (-not (Test-Path $LocalScript)) {
-        Write-Error "CRITICAL: Could not find script at $LocalScript"
-        Read-Host "Press Enter to inspect the damage..." # <--- This keeps the window open on error
+        Write-Error "CRITICAL: Could not find incantation scroll at $LocalScript"
+        Read-Host "Press Enter to inspect the damage..."
         Exit
     }
 
     Set-Location (Split-Path $LocalScript) # Move into the Incantation folder
+    Start-Sleep -Seconds 2
     & PowerShell -ExecutionPolicy Bypass -File $LocalScript -SkipDownload
     
     Exit
@@ -86,7 +89,7 @@ Write-Host "~~~ PHASE 2: THE SUMMONING CIRCLE ~~~" -ForegroundColor Magenta
 
 # 1. Elevate (Admin Rights)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Requesting higher powers (Elevation)..." -ForegroundColor Yellow
+    Write-Host "Focusing the energy..." -ForegroundColor Yellow
     # Relaunch as Admin in the current directory
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipDownload" -Verb RunAs
     Exit
@@ -94,10 +97,11 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 # 2. Check/Install Python
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Host "Python is missing. Conjuring it via Winget..." -ForegroundColor Cyan
+    Write-Host "Python is absent. Conjuring it via Winget..." -ForegroundColor Cyan
     winget install -e --id Python.Python.3.12 --scope machine --accept-source-agreements --accept-package-agreements
     # Refresh env vars for this session
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    Start-Sleep -Seconds 2
 }
 
 # 3. Install/Update uv
@@ -112,6 +116,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 } else {
     uv self update
 }
+Start-Sleep -Seconds 1
 
 # 4. Create Virtual Environment
 $VenvPath = Join-Path $PSScriptRoot ".venv"
@@ -119,25 +124,28 @@ if (-not (Test-Path $VenvPath)) {
     Write-Host "Weaving the containment field (.venv)..." -ForegroundColor Cyan
     uv venv $VenvPath
 }
+Start-Sleep -Seconds 1
 
 # 5. Install Dependencies (Rich)
 Write-Host "Infusing reagents (Rich)..." -ForegroundColor Cyan
 # Using uv pip to install directly into the venv
 uv pip install rich requests --python "$VenvPath\Scripts\python.exe"
+Start-Sleep -Seconds 1
 
 # 6. Execute the Grimoire (Python)
-Write-Host "The Circle is complete. Awakening the Grimoire..." -ForegroundColor Green
+Write-Host "Everything is ready." -ForegroundColor Green
 Start-Sleep -Seconds 1
+Read-Host "Press Enter to start the incantation..."
 Clear-Host
 
 # Ensure Incantation.py exists
 if (-not (Test-Path "Incantation.py")) {
-    Write-Error "The Scroll (Incantation.py) is missing from the Sanctum!"
+    Write-Error "The incantation failed"
     Read-Host "Press Enter to exit..."
     Exit
 }
 
 & "$VenvPath\Scripts\python.exe" "Incantation.py"
 
-Write-Host "The ritual has ended."
+Write-Host "The incantation has ended."
 Read-Host "Press Enter to vanish..."

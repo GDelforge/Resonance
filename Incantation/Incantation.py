@@ -88,15 +88,21 @@ class Grimoire:
             New-Item $FontTemp -ItemType Directory -Force | Out-Null
             $Shell = New-Object -ComObject Shell.Application
             $FontsFolder = $Shell.Namespace(0x14)
+            $RegFonts = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
 
             foreach ($Key in $Fonts.Keys) {
-                Write-Host "Downloading $Key..."
-                $Zip = "$FontTemp\\$Key.zip"
-                Invoke-WebRequest $Fonts[$Key] -OutFile $Zip
-                Expand-Archive $Zip -Dest "$FontTemp\\$Key" -Force
-                $FontFiles = Get-ChildItem "$FontTemp\\$Key" -Include *.ttf,*.otf -Recurse
-                foreach ($File in $FontFiles) {
-                    $FontsFolder.CopyHere($File.FullName, 0x14)
+                # Simple heuristic check to see if font is already registered
+                if ($RegFonts.PSObject.Properties.Name -match $Key) {
+                    Write-Host "Glyph $Key is already inscribed." -ForegroundColor DarkGray
+                } else {
+                    Write-Host "Downloading $Key..."
+                    $Zip = "$FontTemp\\$Key.zip"
+                    Invoke-WebRequest $Fonts[$Key] -OutFile $Zip
+                    Expand-Archive $Zip -Dest "$FontTemp\\$Key" -Force
+                    $FontFiles = Get-ChildItem "$FontTemp\\$Key" -Include *.ttf,*.otf -Recurse
+                    foreach ($File in $FontFiles) {
+                        $FontsFolder.CopyHere($File.FullName, 0x14)
+                    }
                 }
             }
             """
@@ -152,15 +158,25 @@ class Grimoire:
             TextColumn("[progress.description]{task.description}"),
             transient=True
         ) as progress:
-            task_id = progress.add_task("Checking registry...", total=len(softwares))
+            # Optimization: Fetch installed list once to avoid calling winget 10+ times
+            progress.add_task("Consulting the Archives (Reading installed packages)...", total=None)
+            installed_blob = ""
+            try:
+                # We fetch the raw list. It's faster to check string presence than to query individually.
+                # Using utf-8 and ignoring errors to handle potential character encoding issues in app names.
+                proc = subprocess.run(["winget", "list"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                if proc.returncode == 0:
+                    installed_blob = proc.stdout
+            except Exception:
+                pass # Fallback to individual checks if this fails
+
+            task_id = progress.add_task("Summoning...", total=len(softwares))
             
             for name, pkg_id in softwares.items():
                 progress.update(task_id, description=f"Seeking presence of {name}...")
                 
-                # Check installed
-                check = subprocess.run(["winget", "list", "-e", "--id", pkg_id], capture_output=True)
-                
-                if check.returncode != 0:
+                # Check if the ID is in the bulk list, or fallback to individual check if list failed
+                if pkg_id not in installed_blob:
                     progress.update(task_id, description=f"[yellow]Summoning {name}...[/yellow]")
                     install = subprocess.run(
                         ["winget", "install", "-e", "--id", pkg_id, "--silent", "--accept-source-agreements", "--accept-package-agreements"],
@@ -185,6 +201,8 @@ class Grimoire:
             # Dark Mode
             ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "AppsUseLightTheme", 0),
             ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "SystemUsesLightTheme", 0),
+            # Enable Mapped Drives for Elevated Token (Fixes R: drive visibility)
+            ("HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLinkedConnections", 1),
         ]
 
         for path, key, val in settings:
