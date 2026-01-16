@@ -61,7 +61,7 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
     
     # We re-run this same script, but from the C:\Data location
     # We use -ExecutionPolicy Bypass to ensure it runs
-    & PowerShell -ExecutionPolicy Bypass -File "$TargetDir\Summon.ps1" -SkipDownload
+    & PowerShell -ExecutionPolicy Bypass -File "$TargetDir\Incantation\Summon.ps1" -SkipDownload
     
     # Exit this temporary instance
     Exit
