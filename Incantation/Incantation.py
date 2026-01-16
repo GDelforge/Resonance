@@ -14,6 +14,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.panel import Panel
 from rich.style import Style
 from rich.theme import Theme
+from rich.traceback import install
+from rich.table import Table
+from rich.align import Align
 
 # --- THEME CONFIGURATION ---
 custom_theme = Theme({
@@ -26,7 +29,10 @@ custom_theme = Theme({
 })
 console = Console(theme=custom_theme)
 
-class Grimoire:
+# Install rich traceback handler for prettier error debugging
+install(show_locals=True)
+
+class Incantator:
     def __init__(self):
         self.user = os.environ.get('USERNAME')
         self.script_root = Path(__file__).parent
@@ -37,7 +43,8 @@ class Grimoire:
 
     def banner(self):
         console.clear()
-        console.print(Panel(f"[arcane]~~~ THE GRAND CONJURATION (PYTHON EDITION) ~~~[/arcane]\n[dim]Apprentice: {self.user}[/dim]", border_style="magenta"))
+        title = Panel(f"[arcane]~~~ THE GRAND CONJURATION (PYTHON EDITION) ~~~[/arcane]\n[dim]Apprentice: {self.user}[/dim]", border_style="magenta", padding=(1, 2))
+        console.print(Align.center(title))
         time.sleep(1.5)
 
     def run_ps(self, cmd, description=None):
@@ -61,16 +68,26 @@ class Grimoire:
             root_str, subkey = path.split(":\\", 1)
             root = root_map.get(root_str, winreg.HKEY_CURRENT_USER)
 
-            with winreg.CreateKey(root, subkey) as key:
+            # Attempt to open/create with specific write permission (KEY_SET_VALUE)
+            # This avoids Access Denied on HKLM where full control is restricted
+            try:
+                key = winreg.OpenKey(root, subkey, 0, winreg.KEY_SET_VALUE)
+            except FileNotFoundError:
+                key = winreg.CreateKeyEx(root, subkey, 0, winreg.KEY_SET_VALUE)
+
+            with key:
                 winreg.SetValueEx(key, name, 0, reg_type, value)
             return True
+        except PermissionError:
+            console.print(f"[error]  ! Access Denied: {path} (Run as Admin)[/error]")
+            return False
         except Exception as e:
             console.print(f"[error]Registry Error: {e}[/error]")
             return False
 
     def step_fonts(self):
         """Installs fonts by leveraging the Shell.Application COM object via PS wrapper."""
-        console.print("\n[arcane]Step 1: Inscribing Glyphs[/arcane]")
+        console.rule("[arcane]Step 1: Inscribing Glyphs[/arcane]")
         time.sleep(1)
         if Confirm.ask("[spell]Ancient Glyphs (Fonts) seem vital. Inscribe them?[/spell]"):
             font_urls = {
@@ -82,18 +99,23 @@ class Grimoire:
             # This is often cleaner than re-implementing zip extraction and COM objects in ctypes
             ps_block = """
             $Fonts = @{
-                'Nunito'   = 'https://www.1001fonts.com/download/nunito.zip'
-                'FiraCode' = 'https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip'
+                'Nunito'    = 'https://www.1001fonts.com/download/nunito.zip'
+                'Fira Code' = 'https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip'
             }
             $FontTemp = "$env:TEMP\\CustomFonts"
             New-Item $FontTemp -ItemType Directory -Force | Out-Null
             $Shell = New-Object -ComObject Shell.Application
             $FontsFolder = $Shell.Namespace(0x14)
-            $RegFonts = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+            
+            $RegLM = Get-ItemProperty "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts" -ErrorAction SilentlyContinue
+            $RegCU = Get-ItemProperty "HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts" -ErrorAction SilentlyContinue
+            $Installed = @()
+            if ($RegLM) { $Installed += $RegLM.PSObject.Properties.Name }
+            if ($RegCU) { $Installed += $RegCU.PSObject.Properties.Name }
 
             foreach ($Key in $Fonts.Keys) {
                 # Simple heuristic check to see if font is already registered
-                if ($RegFonts.PSObject.Properties.Name -match $Key) {
+                if ($Installed -match $Key) {
                     Write-Host "Glyph $Key is already inscribed." -ForegroundColor DarkGray
                 } else {
                     Write-Host "Downloading $Key..."
@@ -116,7 +138,7 @@ class Grimoire:
 
     def step_share_and_drive(self):
         """Sets up the Data folder and Maps R:"""
-        console.print("\n[arcane]Step 2: Setting up the Codex[/arcane]")
+        console.rule("[arcane]Step 2: Setting up the Codex[/arcane]")
         time.sleep(1)
 
         if not self.data_path.exists():
@@ -158,7 +180,7 @@ class Grimoire:
             "Node.js": "OpenJS.NodeJS"
         }
 
-        console.print("\n[arcane]Step 3: Summoning Instruments (Winget)[/arcane]")
+        console.rule("[arcane]Step 3: Summoning Instruments (Winget)[/arcane]")
         console.print("[info]Aligning planetary bodies for software download...[/info]")
         time.sleep(2)
         
@@ -205,7 +227,7 @@ class Grimoire:
 
     def step_windows_settings(self):
         """Configures Windows UI settings via Registry."""
-        console.print("\n[arcane]Step 4: Shaping the Apparatus (Settings)[/arcane]")
+        console.rule("[arcane]Step 4: Shaping the Apparatus (Settings)[/arcane]")
         time.sleep(1)
         
         settings = [
@@ -220,9 +242,15 @@ class Grimoire:
             ("HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLinkedConnections", 1),
         ]
 
+        table = Table(show_header=True, header_style="bold magenta", box=None)
+        table.add_column("Configuration Key")
+        table.add_column("Value")
+
         for path, key, val in settings:
             self.set_reg_key(path, key, val)
+            table.add_row(key, str(val))
         
+        console.print(table)
         console.print("[success]  + Visuals aligned to darkness.[/success]")
         time.sleep(0.5)
 
@@ -240,7 +268,7 @@ class Grimoire:
 
     def step_gemini(self):
         """Installs Gemini CLI via NPM."""
-        console.print("\n[arcane]Step 5: Summoning the Oracle (Gemini CLI)[/arcane]")
+        console.rule("[arcane]Step 5: Summoning the Oracle (Gemini CLI)[/arcane]")
         time.sleep(1)
         if shutil.which("npm"):
             # Simple check if package is installed
@@ -254,25 +282,72 @@ class Grimoire:
         else:
             console.print("[warning]  ! npm not found. The Oracle cannot be summoned.[/warning]")
 
+    def step_path(self):
+        """Adds paths to PATH."""
+        console.rule("[arcane]Step 6: Extending the Ley Lines (PATH)[/arcane]")
+        time.sleep(1)
+        targets = [
+            r"G:\My Drive\Data\Resonance\Spells"
+        ]
+        
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+                try:
+                    path_val, type_ = winreg.QueryValueEx(key, "Path")
+                except FileNotFoundError:
+                    path_val = ""
+                    type_ = winreg.REG_EXPAND_SZ
+                
+                parts = [p for p in path_val.split(";") if p]
+                existing_lower = [p.lower() for p in parts]
+                modified = False
+
+                for target in targets:
+                    if target.lower() not in existing_lower:
+                        parts.append(target)
+                        existing_lower.append(target.lower())
+                        modified = True
+                        console.print(f"[success]  + The path {target} has been woven into the Ley Lines.[/success]")
+                    else:
+                        console.print(f"[dim]  . The path {target} is already present.[/dim]")
+
+                if modified:
+                    new_path = ";".join(parts)
+                    winreg.SetValueEx(key, "Path", 0, type_, new_path)
+        except Exception as e:
+            console.print(f"[error]  ! Failed to extend Ley Lines: {e}[/error]")
+
     def finalize(self):
-        console.print("\n[arcane]~~~ INCANTATION COMPLETE ~~~[/arcane]")
+        console.rule("[arcane]~~~ INCANTATION COMPLETE ~~~[/arcane]")
         time.sleep(1)
         if Confirm.ask("Restart Explorer to apply all sigils?"):
             subprocess.run(["powershell", "-c", "Stop-Process -Name explorer -Force; Start-Process explorer"])
 
 # --- ENTRY POINT ---
 if __name__ == "__main__":
+    # Ensure Admin privileges for HKLM writes
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        console.print("[warning]Elevation required for system modifications. Summoning UAC...[/warning]")
+        script_path = os.path.abspath(__file__)
+        # ShellExecuteW returns >32 on success
+        ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script_path}"', None, 1)
+        if ret > 32:
+            sys.exit(0)
+        console.print("[error]Elevation failed or cancelled. Proceeding with limited power...[/error]")
+        time.sleep(2)
+
     try:
-        mage = Grimoire()
-        mage.banner()
+        Incantation = Incantator()
+        Incantation.banner()
         
-        mage.step_fonts()
-        mage.step_share_and_drive()
-        mage.step_software()
-        mage.step_windows_settings()
-        mage.step_gemini()
+        Incantation.step_fonts()
+        Incantation.step_share_and_drive()
+        Incantation.step_software()
+        Incantation.step_windows_settings()
+        Incantation.step_gemini()
+        Incantation.step_path()
         
-        mage.finalize()
+        Incantation.finalize()
     except Exception as e:
         console.print(Panel(f"[bold red]FATAL ERROR[/bold red]\n\n{e}", border_style="red"))
         import traceback
