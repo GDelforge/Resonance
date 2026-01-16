@@ -57,13 +57,17 @@ if ($CurrentDir -ne $TargetDir -and -not $SkipDownload) {
 
     # 4. Handoff to Local Script
     Write-Host "Transferring control to the local Sanctum..." -ForegroundColor Green
-    Set-Location $TargetDir
+    $LocalScript = Join-Path $TargetDir "Incantation\Summon.ps1"
     
-    # We re-run this same script, but from the C:\Data location
-    # We use -ExecutionPolicy Bypass to ensure it runs
-    & PowerShell -ExecutionPolicy Bypass -File "$TargetDir\Incantation\Summon.ps1" -SkipDownload
+    if (-not (Test-Path $LocalScript)) {
+        Write-Error "CRITICAL: Could not find script at $LocalScript"
+        Read-Host "Press Enter to inspect the damage..." # <--- This keeps the window open on error
+        Exit
+    }
+
+    Set-Location (Split-Path $LocalScript) # Move into the Incantation folder
+    & PowerShell -ExecutionPolicy Bypass -File $LocalScript -SkipDownload
     
-    # Exit this temporary instance
     Exit
 }
 
