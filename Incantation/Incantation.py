@@ -20,7 +20,7 @@ from rich.align import Align
 
 # --- THEME CONFIGURATION ---
 custom_theme = Theme({
-    "info": "dim cyan",
+    "info": "dim white",
     "warning": "yellow",
     "error": "bold red",
     "success": "bold green",
@@ -89,6 +89,7 @@ class Incantator:
         """Installs fonts by leveraging the Shell.Application COM object via PS wrapper."""
         console.rule("[arcane]Step 1: Inscribing Glyphs[/arcane]")
         time.sleep(1)
+        console.print("[info]This step will download and install 'Nunito' and 'Fira Code' fonts to your system.[/info]")
         if Confirm.ask("[spell]Ancient Glyphs (Fonts) seem vital. Inscribe them?[/spell]"):
             font_urls = {
                 "Nunito": "https://www.1001fonts.com/download/nunito.zip",
@@ -141,18 +142,22 @@ class Incantator:
         console.rule("[arcane]Step 2: Setting up the Codex[/arcane]")
         time.sleep(1)
 
-        if not self.data_path.exists():
-            console.print(f"[info]The Codex ({self.data_path}) is not yet materialized.[/info]")
-            if Confirm.ask(f"[spell]The Codex ({self.data_path}) is hidden. Reveal it?[/spell]"):
+        # Part A: The Codex (Data Folder)
+        console.print(f"[info]This step will create the directory '{self.data_path}' and share it as '{self.share_name}' with full access for user '{self.user}'.[/info]")
+        if Confirm.ask(f"[spell]The Codex ({self.data_path}). Manage it?[/spell]"):
+            if not self.data_path.exists():
+                console.print(f"[info]The Codex ({self.data_path}) is hidden. Revealing...[/info]")
                 self.data_path.mkdir(exist_ok=True)
                 # Share it
                 self.run_ps(f"New-SmbShare -Name '{self.share_name}' -Path '{self.data_path}' -FullAccess '{self.user}' -Description 'Data Repository' -ErrorAction SilentlyContinue", "Creating SMB Share")
-        else:
-            console.print(f"[dim]The Codex ({self.data_path}) stands ready.[/dim]")
+            else:
+                console.print(f"[dim]The Codex ({self.data_path}) stands ready.[/dim]")
 
-        if not Path(self.drive_letter).exists():
-            console.print(f"[info]The Astral Gateway ({self.drive_letter}) is currently closed.[/info]")
-            if Confirm.ask(f"[spell]The Astral Gateway ({self.drive_letter}) is closed. Bind it?[/spell]"):
+        # Part B: The Astral Gateway (Drive Mapping)
+        console.print(f"[info]This step will map the drive letter '{self.drive_letter}' to the local share '\\\\localhost\\{self.share_name}' and label it '{self.drive_label}'.[/info]")
+        if Confirm.ask(f"[spell]The Astral Gateway ({self.drive_letter}). Bind it?[/spell]"):
+            if not Path(self.drive_letter).exists():
+                console.print(f"[info]The Astral Gateway ({self.drive_letter}) is closed. Binding...[/info]")
                 cmd = f"""
                 New-SmbMapping -LocalPath {self.drive_letter} -RemotePath "\\\\localhost\\{self.share_name}" -Persistent $true
                 $RegPath = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MountPoints2\\##localhost#{self.share_name}"
@@ -161,8 +166,8 @@ class Incantator:
                 """
                 if self.run_ps(cmd, "Binding Drive"):
                     console.print(f"[success]  + Gateway bound as {self.drive_label}.[/success]")
-        else:
-            console.print(f"[dim]The Astral Gateway ({self.drive_letter}) is already open.[/dim]")
+            else:
+                console.print(f"[dim]The Astral Gateway ({self.drive_letter}) is already open.[/dim]")
         time.sleep(1)
 
     def step_software(self):
@@ -177,149 +182,236 @@ class Incantator:
             "VS Code": "Microsoft.VisualStudioCode",
             "Git": "Git.Git",
             "Python": "Python.Python.3.12",
-            "Node.js": "OpenJS.NodeJS"
+            "Node.js": "OpenJS.NodeJS",
+            "Windows Terminal": "Microsoft.WindowsTerminal"
         }
 
         console.rule("[arcane]Step 3: Summoning Instruments (Winget)[/arcane]")
-        console.print("[info]Aligning planetary bodies for software download...[/info]")
-        time.sleep(2)
+        time.sleep(1)
         
-        # Check if Winget exists
-        if shutil.which("winget") is None:
-            console.print("[error]Winget is missing from the realm.[/error]")
-            return
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True
-        ) as progress:
-            # Optimization: Fetch installed list once to avoid calling winget 10+ times
-            progress.add_task("Consulting the Archives (Reading installed packages)...", total=None)
-            installed_blob = ""
-            try:
-                # We fetch the raw list. It's faster to check string presence than to query individually.
-                # Using utf-8 and ignoring errors to handle potential character encoding issues in app names.
-                proc = subprocess.run(["winget", "list"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
-                if proc.returncode == 0:
-                    installed_blob = proc.stdout
-            except Exception:
-                pass # Fallback to individual checks if this fails
-
-            task_id = progress.add_task("Summoning...", total=len(softwares))
+        # Dynamic description
+        software_list = ", ".join(softwares.keys())
+        console.print(f"[info]This step will check for and install the following software using Winget: {software_list}.[/info]")
+        
+        if Confirm.ask("[spell]Shall we summon these instruments?[/spell]"):
+            console.print("[info]Aligning planetary bodies for software download...[/info]")
+            time.sleep(2)
             
-            for name, pkg_id in softwares.items():
-                progress.update(task_id, description=f"Seeking presence of {name}...")
+            # Check if Winget exists
+            if shutil.which("winget") is None:
+                console.print("[error]Winget is missing from the realm.[/error]")
+                return
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True
+            ) as progress:
+                # Optimization: Fetch installed list once to avoid calling winget 10+ times
+                progress.add_task("Consulting the Archives (Reading installed packages)...", total=None)
+                installed_blob = ""
+                try:
+                    # We fetch the raw list. It's faster to check string presence than to query individually.
+                    # Using utf-8 and ignoring errors to handle potential character encoding issues in app names.
+                    proc = subprocess.run(["winget", "list"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
+                    if proc.returncode == 0:
+                        installed_blob = proc.stdout
+                except Exception:
+                    pass # Fallback to individual checks if this fails
+
+                task_id = progress.add_task("Summoning...", total=len(softwares))
                 
-                # Check if the ID is in the bulk list, or fallback to individual check if list failed
-                if pkg_id not in installed_blob:
-                    progress.update(task_id, description=f"[yellow]Summoning {name}...[/yellow]")
-                    install = subprocess.run(
-                        ["winget", "install", "-e", "--id", pkg_id, "--silent", "--accept-source-agreements", "--accept-package-agreements"],
-                        capture_output=True
-                    )
-                    if install.returncode == 0:
-                        console.print(f"[success]  + {name} summoned.[/success]")
+                for name, pkg_id in softwares.items():
+                    progress.update(task_id, description=f"Seeking presence of {name}...")
+                    
+                    # Check if the ID is in the bulk list, or fallback to individual check if list failed
+                    if pkg_id not in installed_blob:
+                        progress.update(task_id, description=f"[yellow]Summoning {name}...[/yellow]")
+                        install = subprocess.run(
+                            ["winget", "install", "-e", "--id", pkg_id, "--silent", "--accept-source-agreements", "--accept-package-agreements"],
+                            capture_output=True
+                        )
+                        if install.returncode == 0:
+                            console.print(f"[success]  + {name} summoned.[/success]")
+                        else:
+                            console.print(f"[error]  ! Failed to summon {name}.[/error]")
                     else:
-                        console.print(f"[error]  ! Failed to summon {name}.[/error]")
-                else:
-                    console.print(f"[dim]  . {name} already present.[/dim]")
+                        console.print(f"[dim]  . {name} already present.[/dim]")
 
     def step_windows_settings(self):
         """Configures Windows UI settings via Registry."""
         console.rule("[arcane]Step 4: Shaping the Apparatus (Settings)[/arcane]")
         time.sleep(1)
+        console.print("[info]This step will configure Windows Explorer (hidden files, file extensions), set Dark Mode, and enable mapped drives for elevated processes.[/info]")
         
-        settings = [
-            # Explorer
-            ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "ShowTaskViewButton", 0),
-            ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "Hidden", 1), # Show Hidden
-            ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "HideFileExt", 0), # Show Ext
-            # Dark Mode
-            ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "AppsUseLightTheme", 0),
-            ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "SystemUsesLightTheme", 0),
-            # Enable Mapped Drives for Elevated Token (Fixes R: drive visibility)
-            ("HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLinkedConnections", 1),
-        ]
+        if Confirm.ask("[spell]Shall we shape the apparatus?[/spell]"):
+            settings = [
+                # Explorer
+                ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "ShowTaskViewButton", 0),
+                ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "Hidden", 1), # Show Hidden
+                ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "HideFileExt", 0), # Show Ext
+                # Dark Mode
+                ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "AppsUseLightTheme", 0),
+                ("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "SystemUsesLightTheme", 0),
+                # Enable Mapped Drives for Elevated Token (Fixes R: drive visibility)
+                ("HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLinkedConnections", 1),
+            ]
 
-        table = Table(show_header=True, header_style="bold magenta", box=None)
-        table.add_column("Configuration Key")
-        table.add_column("Value")
+            table = Table(show_header=True, header_style="bold magenta", box=None)
+            table.add_column("Configuration Key")
+            table.add_column("Value")
 
-        for path, key, val in settings:
-            self.set_reg_key(path, key, val)
-            table.add_row(key, str(val))
-        
-        console.print(table)
-        console.print("[success]  + Visuals aligned to darkness.[/success]")
-        time.sleep(0.5)
+            for path, key, val in settings:
+                self.set_reg_key(path, key, val)
+                table.add_row(key, str(val))
+            
+            console.print(table)
+            console.print("[success]  + Visuals aligned to darkness.[/success]")
+            time.sleep(0.5)
 
-        # Wallpaper
-        bg_path = self.script_root / "Assets" / "background.png"
-        if bg_path.exists():
-            console.print(f"[info]Found background artifact at {bg_path}.[/info]")
-            dest = Path(os.environ["USERPROFILE"]) / "Pictures" / "background.png"
-            shutil.copy(bg_path, dest)
-            # Python equivalent of SystemParametersInfo for wallpaper
-            SPI_SETDESKWALLPAPER = 20
-            ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, str(dest), 3)
-            console.print("[success]  + Reality (Wallpaper) rewritten.[/success]")
-            time.sleep(1)
+            # Wallpaper
+            bg_path = self.script_root / "Assets" / "background.png"
+            if bg_path.exists():
+                console.print(f"[info]Found background artifact at {bg_path}.[/info]")
+                dest = Path(os.environ["USERPROFILE"]) / "Pictures" / "background.png"
+                shutil.copy(bg_path, dest)
+                # Python equivalent of SystemParametersInfo for wallpaper
+                SPI_SETDESKWALLPAPER = 20
+                ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, str(dest), 3)
+                console.print("[success]  + Reality (Wallpaper) rewritten.[/success]")
+                time.sleep(1)
 
     def step_gemini(self):
         """Installs Gemini CLI via NPM."""
         console.rule("[arcane]Step 5: Summoning the Oracle (Gemini CLI)[/arcane]")
         time.sleep(1)
-        if shutil.which("npm"):
-            # Simple check if package is installed
-            check = subprocess.run("npm list -g @google/gemini-cli", shell=True, capture_output=True, text=True)
-            if "@google/gemini-cli" not in check.stdout:
-                with console.status("[bold yellow]Npm is chanting..."):
-                    subprocess.run("npm install -g @google/gemini-cli", shell=True)
-                console.print("[success]  + The Oracle is ready.[/success]")
+        console.print("[info]This step will install the '@google/gemini-cli' package globally using npm.[/info]")
+        
+        if Confirm.ask("[spell]Shall we summon the Oracle?[/spell]"):
+            if shutil.which("npm"):
+                # Simple check if package is installed
+                check = subprocess.run("npm list -g @google/gemini-cli", shell=True, capture_output=True, text=True)
+                if "@google/gemini-cli" not in check.stdout:
+                    with console.status("[bold yellow]Npm is chanting..."):
+                        subprocess.run("npm install -g @google/gemini-cli", shell=True)
+                    console.print("[success]  + The Oracle is ready.[/success]")
+                else:
+                    console.print("[dim]  . The Oracle waits.[/dim]")
             else:
-                console.print("[dim]  . The Oracle waits.[/dim]")
-        else:
-            console.print("[warning]  ! npm not found. The Oracle cannot be summoned.[/warning]")
+                console.print("[warning]  ! npm not found. The Oracle cannot be summoned.[/warning]")
 
     def step_path(self):
         """Adds paths to PATH."""
         console.rule("[arcane]Step 6: Extending the Ley Lines (PATH)[/arcane]")
         time.sleep(1)
-        targets = [
-            r"G:\My Drive\Data\Resonance\Spells"
-        ]
+        console.print(r"[info]This step will add 'G:\My Drive\Data\Resonance\Spells' to your user PATH environment variable.[/info]")
         
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
-                try:
-                    path_val, type_ = winreg.QueryValueEx(key, "Path")
-                except FileNotFoundError:
-                    path_val = ""
-                    type_ = winreg.REG_EXPAND_SZ
-                
-                parts = [p for p in path_val.split(";") if p]
-                existing_lower = [p.lower() for p in parts]
-                modified = False
+        if Confirm.ask("[spell]Shall we extend the Ley Lines?[/spell]"):
+            targets = [
+                r"G:\My Drive\Data\Resonance\Spells"
+            ]
+            
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+                    try:
+                        path_val, type_ = winreg.QueryValueEx(key, "Path")
+                    except FileNotFoundError:
+                        path_val = ""
+                        type_ = winreg.REG_EXPAND_SZ
+                    
+                    parts = [p for p in path_val.split(";") if p]
+                    existing_lower = [p.lower() for p in parts]
+                    modified = False
 
-                for target in targets:
-                    if target.lower() not in existing_lower:
-                        parts.append(target)
-                        existing_lower.append(target.lower())
-                        modified = True
-                        console.print(f"[success]  + The path {target} has been woven into the Ley Lines.[/success]")
-                    else:
-                        console.print(f"[dim]  . The path {target} is already present.[/dim]")
+                    for target in targets:
+                        if target.lower() not in existing_lower:
+                            parts.append(target)
+                            existing_lower.append(target.lower())
+                            modified = True
+                            console.print(f"[success]  + The path {target} has been woven into the Ley Lines.[/success]")
+                        else:
+                            console.print(f"[dim]  . The path {target} is already present.[/dim]")
 
-                if modified:
-                    new_path = ";".join(parts)
-                    winreg.SetValueEx(key, "Path", 0, type_, new_path)
-        except Exception as e:
-            console.print(f"[error]  ! Failed to extend Ley Lines: {e}[/error]")
+                    if modified:
+                        new_path = ";".join(parts)
+                        winreg.SetValueEx(key, "Path", 0, type_, new_path)
+            except Exception as e:
+                console.print(f"[error]  ! Failed to extend Ley Lines: {e}[/error]")
+
+    def step_desktop_cleanse(self):
+        """Hides all desktop icons."""
+        console.rule("[arcane]Step 7: Cleansing the Surface (Desktop)[/arcane]")
+        time.sleep(1)
+        console.print("[info]This step will hide all icons on your Desktop by modifying the registry key 'HideIcons'.[/info]")
+        if Confirm.ask("[spell]Shall we banish all icons from the Desktop?[/spell]"):
+            # HideIcons = 1
+            if self.set_reg_key(r"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "HideIcons", 1):
+                console.print("[success]  + The surface has been silenced.[/success]")
+            else:
+                console.print("[error]  ! Failed to silence the Desktop.[/error]")
+
+    def step_taskbar_renewal(self):
+        """Clears the taskbar and pins Windows Terminal using LayoutModification.xml."""
+        console.rule("[arcane]Step 8: Forging the Anchor (Taskbar)[/arcane]")
+        time.sleep(1)
+        console.print("[info]This step will remove all existing pinned items from the Taskbar and pin ONLY the Windows Terminal.[/info]")
+        if Confirm.ask("[spell]Shall we clear the Taskbar and anchor only the Terminal?[/spell]"):
+            ps_script = r"""
+            $ErrorActionPreference = 'SilentlyContinue'
+            
+            # Path to LayoutModification.xml
+            $LayoutPath = "$env:LOCALAPPDATA\Microsoft\Windows\Shell\LayoutModification.xml"
+            
+            # Define the XML content for replacing taskbar pins with Windows Terminal
+            $XmlContent = @'
+<?xml version="1.0" encoding="utf-8"?>
+<LayoutModificationTemplate
+    xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification"
+    xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout"
+    xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout"
+    xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout"
+    Version="1">
+  <CustomTaskbarLayoutCollection PinListPlacement="Replace">
+    <defaultlayout:TaskbarLayout>
+      <taskbar:TaskbarPinList>
+        <taskbar:UWA AppUserModelID="Microsoft.WindowsTerminal_8wekyb3d8bbwe!App" />
+      </taskbar:TaskbarPinList>
+    </defaultlayout:TaskbarLayout>
+  </CustomTaskbarLayoutCollection>
+</LayoutModificationTemplate>
+'@
+            
+            # Backup existing layout if it exists
+            if (Test-Path $LayoutPath) {
+                Copy-Item $LayoutPath "$LayoutPath.bak" -Force
+            }
+            
+            # Write the new XML
+            Set-Content -Path $LayoutPath -Value $XmlContent -Encoding UTF8
+            
+            # Clear existing pins and registry state to force a reload
+            $TaskbarPath = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+            if (Test-Path $TaskbarPath) {
+                Remove-Item "$TaskbarPath\*" -Force
+            }
+            Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband" -Name "*"
+            
+            # Restart Explorer to apply changes
+            Stop-Process -Name explorer -Force
+            Start-Sleep -Seconds 2
+            if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) {
+                Start-Process explorer
+            }
+            """
+            
+            with console.status("[bold magenta]Reforging the Taskbar (LayoutModification.xml)..."):
+                self.run_ps(ps_script)
+            console.print("[success]  + Taskbar layout applied. (Explorer restarted)[/success]")
 
     def finalize(self):
         console.rule("[arcane]~~~ INCANTATION COMPLETE ~~~[/arcane]")
         time.sleep(1)
+        console.print("[info]This step will restart Windows Explorer to ensure all registry changes and icon settings take effect immediately.[/info]")
         if Confirm.ask("Restart Explorer to apply all sigils?"):
             subprocess.run(["powershell", "-c", "Stop-Process -Name explorer -Force; Start-Process explorer"])
 
@@ -346,6 +438,8 @@ if __name__ == "__main__":
         Incantation.step_windows_settings()
         Incantation.step_gemini()
         Incantation.step_path()
+        Incantation.step_desktop_cleanse()
+        Incantation.step_taskbar_renewal()
         
         Incantation.finalize()
     except Exception as e:
