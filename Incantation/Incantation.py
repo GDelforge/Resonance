@@ -183,7 +183,8 @@ class Incantator:
             "Git": "Git.Git",
             "Python": "Python.Python.3.12",
             "Node.js": "OpenJS.NodeJS",
-            "Windows Terminal": "Microsoft.WindowsTerminal"
+            "Windows Terminal": "Microsoft.WindowsTerminal",
+            "Espanso": "Espanso.Espanso"
         }
 
         console.rule("[arcane]Step 3: Summoning Instruments (Winget)[/arcane]")
